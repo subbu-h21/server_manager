@@ -2,13 +2,24 @@
 
 A local dashboard to register, monitor, start, and stop other local Windows servers from one page.
 
+## Prerequisites
+
+- **Windows 10/11** — the tool shells out to `cmd`, `netstat`, and `taskkill`, so it's Windows-only.
+- **Python 3.10 or later**, with `python` and `pip` available on your `PATH`. Check with:
+  ```
+  python --version
+  ```
+- Each server you plan to register needs its own working `start.bat` (or similar) that you'd normally double-click to run it manually.
+
 ## Setup
+
+Clone the repo, then from the project folder run:
 
 ```
 setup.bat
 ```
 
-Creates a virtual environment and installs dependencies. Run this once.
+This creates a `venv` and installs the dependencies from `requirements.txt` (`fastapi`, `uvicorn`). Run this once, the first time only.
 
 ## Run
 
@@ -16,7 +27,9 @@ Creates a virtual environment and installs dependencies. Run this once.
 start.bat
 ```
 
-Opens the dashboard at `http://localhost:8002`. On first run, `servers.json` is created empty — add your servers from the UI.
+Opens a console window running the dashboard and launches your browser to `http://localhost:8002` once it's ready. On first run, `servers.json` is created empty — add your servers from the UI (name, full path to their `.bat` file, port).
+
+To stop the dashboard itself, close the "Server Manager" console window it opened, or `Ctrl+C` inside it.
 
 ## How it works
 
