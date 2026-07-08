@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Server Manager</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 2.5rem 1.5rem;
+    color: #1f2937;
+    background: #f9fafb;
+  }
+  h1 {
+    font-size: 1.3rem;
+    font-weight: 600;
+    margin: 0;
+    color: #111827;
+  }
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.25rem;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+  .bulk-actions { display: flex; gap: 0.5rem; margin-top: 1.75rem;  }
+  #servers { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 1.75rem; }
+  .server {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 0.85rem 1.1rem;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+  }
+  .empty {
+    color: #9ca3af;
+    font-size: 0.9rem;
+    padding: 1rem 0;
+  }
+  .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #dc2626;
+    flex-shrink: 0;
+    box-shadow: 0 0 0 3px rgba(220,38,38,0.12);
+    transition: background 0.2s, box-shadow 0.2s;
+  }
+  .dot.running {
+    background: #16a34a;
+    box-shadow: 0 0 0 3px rgba(22,163,74,0.14);
+  }
+  .name { font-weight: 600; min-width: 180px; color: #111827; }
+  .port { color: #9ca3af; font-size: 0.85rem; min-width: 60px; }
+  .include-toggle {
+    cursor: pointer;
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+  }
+  .spacer { flex: 1; }
+  .actions { display: flex; gap: 0.4rem; }
+  button {
+    border: none;
+    border-radius: 6px;
+    padding: 0.45rem 0.9rem;
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: white;
+    transition: opacity 0.15s, transform 0.05s;
+  }
+  button:active:not(:disabled) { transform: scale(0.97); }
+  button:hover:not(:disabled) { opacity: 0.88; }
+  button.start { background: #2563eb; }
+  button.stop { background: #6b7280; }
+  button.remove { background: transparent; color: #dc2626; border: 1px solid #fecaca; }
+  button.remove:hover:not(:disabled) { background: #fef2f2; opacity: 1; }
+  button.edit { background: transparent; color: #2563eb; border: 1px solid #bfdbfe; }
+  button.edit:hover:not(:disabled) { background: #eff6ff; opacity: 1; }
+  button:disabled { opacity: 0.45; cursor: default; }
+  .server.editing { flex-wrap: wrap; }
+  .edit-form { display: flex; gap: 0.5rem; flex-wrap: wrap; flex: 1; align-items: stretch; }
+  .edit-form input {
+    padding: 0.45rem 0.6rem;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 0.85rem;
+  }
+  .edit-form input[name="name"] { flex: 1; min-width: 120px; }
+  .edit-form input[name="start_script"] { flex: 2; min-width: 200px; }
+  .edit-form input[name="port"] { width: 80px; }
+  form {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1rem 1.1rem;
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    align-items: stretch;
+  }
+  form input {
+    padding: 0.5rem 0.7rem;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 0.88rem;
+  }
+  form input:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
+  }
+  form input[name="name"] { flex: 1; min-width: 140px; }
+  form input[name="start_script"] { flex: 2; min-width: 220px; }
+  form input[name="port"] { width: 90px; }
+  form button { background: #2563eb; padding: 0.5rem 1.1rem; }
+  #error {
+    color: #b91c1c;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 6px;
+    padding: 0.5rem 0.8rem;
+    margin-top: 0.6rem;
+    font-size: 0.85rem;
+    display: none;
+  }
+  #error.visible { display: block; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>Server Manager</h1>
+
+</div>
+
+<form id="add-form">
+
+  <input name="name" placeholder="Name" required>
+  <input name="start_script" placeholder="Full path to start.bat" required>
+  <input name="port" type="number" placeholder="Port" required>
+  <button type="submit">Add Server</button>
+</form>
+<div id="error"></div>
+
+<div class="bulk-actions">
+  <button id="start-all" class="start">Start All</button>
+  <button id="stop-all" class="stop">Stop All</button>
+</div>
+
+<div id="servers"></div>
+
+<script>
+const serversEl = document.getElementById('servers');
+const errorEl = document.getElementById('error');
+let servers = [];
+let pending = {};
+let editingId = null;
+
+function showError(msg) {
+  errorEl.textContent = msg;
+  errorEl.classList.add('visible');
+  setTimeout(() => errorEl.classList.remove('visible'), 4000);
+}
+
+function render() {
+  if (servers.length === 0) {
+    serversEl.innerHTML = '<div class="empty">No servers registered yet — add one below.</div>';
+    return;
+  }
+  serversEl.innerHTML = '';
+  for (const s of servers) {
+    const busy = pending[s.id];
+    const row = document.createElement('div');
+
+    if (editingId === s.id) {
+      row.className = 'server editing';
+      row.innerHTML = `
+        <div class="edit-form">
+          <input name="name" value="${s.name}" required>
+          <input name="start_script" value="${s.start_script}" required>
+          <input name="port" type="number" value="${s.port}" required>
+        </div>
+        <div class="actions">
+          <button class="start">Save</button>
+          <button class="stop">Cancel</button>
+        </div>
+      `;
+      row.querySelector('.start').addEventListener('click', () => saveEdit(s.id, row));
+      row.querySelector('.stop').addEventListener('click', () => { editingId = null; render(); });
+      serversEl.appendChild(row);
+      continue;
+    }
+
+    row.className = 'server';
+    row.innerHTML = `
+      <input type="checkbox" class="include-toggle" title="Include in Start All" ${s.enabled ? 'checked' : ''}>
+      <span class="dot ${s.running ? 'running' : ''}"></span>
+      <span class="name">${s.name}</span>
+      <span class="port">:${s.port}</span>
+      <span class="spacer"></span>
+      <div class="actions">
+        <button class="start" ${s.running || busy ? 'disabled' : ''}>${busy === 'start' ? 'Starting…' : 'Start'}</button>
+        <button class="stop" ${!s.running || busy ? 'disabled' : ''}>${busy === 'stop' ? 'Stopping…' : 'Stop'}</button>
+        <button class="edit" ${busy ? 'disabled' : ''}>Edit</button>
+        <button class="remove" ${busy ? 'disabled' : ''}>${busy === 'remove' ? 'Removing…' : 'Remove'}</button>
+      </div>
+    `;
+    row.querySelector('.start').addEventListener('click', () => startServer(s.id));
+    row.querySelector('.stop').addEventListener('click', () => stopServer(s.id));
+    row.querySelector('.edit').addEventListener('click', () => { editingId = s.id; render(); });
+    row.querySelector('.remove').addEventListener('click', () => removeServer(s.id));
+    row.querySelector('.include-toggle').addEventListener('change', (e) => setEnabled(s.id, e.target.checked));
+    serversEl.appendChild(row);
+  }
+}
+
+async function saveEdit(id, row) {
+  const body = {
+    name: row.querySelector('input[name="name"]').value,
+    start_script: row.querySelector('input[name="start_script"]').value,
+    port: parseInt(row.querySelector('input[name="port"]').value, 10),
+  };
+  const res = await fetch(`/servers/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    showError((await res.json()).detail || 'Failed to save changes');
+    return;
+  }
+  editingId = null;
+  refresh();
+}
+
+async function refresh() {
+  const res = await fetch('/servers');
+  servers = await res.json();
+  render();
+}
+
+async function setEnabled(id, enabled) {
+  const s = servers.find((x) => x.id === id);
+  if (s) s.enabled = enabled;
+  const res = await fetch(`/servers/${id}/enabled`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enabled }),
+  });
+  if (!res.ok) {
+    showError((await res.json()).detail || 'Failed to update');
+    refresh();
+  }
+}
+
+async function withPending(id, action, fn) {
+  pending[id] = action;
+  render();
+  try {
+    const res = await fetch(...fn());
+    if (!res.ok) showError((await res.json()).detail || `Failed to ${action}`);
+  } finally {
+    delete pending[id];
+    await refresh();
+  }
+}
+
+function startServer(id) {
+  withPending(id, 'start', () => [`/servers/${id}/start`, { method: 'POST' }]);
+}
+
+function stopServer(id) {
+  withPending(id, 'stop', () => [`/servers/${id}/stop`, { method: 'POST' }]);
+}
+
+function removeServer(id) {
+  withPending(id, 'remove', () => [`/servers/${id}`, { method: 'DELETE' }]);
+}
+
+document.getElementById('start-all').addEventListener('click', () => {
+  for (const s of servers) {
+    if (s.enabled && !s.running && !pending[s.id]) startServer(s.id);
+  }
+});
+
+document.getElementById('stop-all').addEventListener('click', () => {
+  for (const s of servers) {
+    if (s.running && !pending[s.id]) stopServer(s.id);
+  }
+});
+
+document.getElementById('add-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const body = {
+    name: form.name.value,
+    start_script: form.start_script.value,
+    port: parseInt(form.port.value, 10),
+  };
+  const res = await fetch('/servers', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    showError((await res.json()).detail || 'Failed to add server');
+    return;
+  }
+  form.reset();
+  refresh();
+});
+
+refresh();
+setInterval(refresh, 3000);
+</script>
+</body>
+</html>
