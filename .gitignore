@@ -2,5 +2,6 @@ venv/
 __pycache__/
 *.pyc
 servers.json
-server.log
+server.log*
 .claude/
+*.lnk

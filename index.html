@@ -2,261 +2,323 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Server Manager</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230067c0'/%3E%3Crect x='7' y='8' width='18' height='6.5' rx='2' fill='%23fff'/%3E%3Crect x='7' y='17.5' width='18' height='6.5' rx='2' fill='%23fff'/%3E%3Ccircle cx='11' cy='11.25' r='1.3' fill='%230067c0'/%3E%3Ccircle cx='11' cy='20.75' r='1.3' fill='%230067c0'/%3E%3C/svg%3E">
 <style>
+  /* Light, like Windows 11 Settings (and Friday's control panel) */
+  :root {
+    --canvas: #f3f3f3; --surface: #ffffff; --surface-2: #fbfbfb; --line: #e5e5e5; --line-strong: #d1d1d1;
+    --text: #333333; --text-2: #5c5c5c; --text-3: #8a8a8a;
+    --accent: #0067c0; --accent-hover: #1975c5;
+    --ok: #03787c; --warn: #9d5d00; --bad: #c42b1c; --bad-hover: #b02818; --bad-soft: #fde7e9;
+    --display: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+    --body: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  }
   * { box-sizing: border-box; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-    max-width: 760px;
-    margin: 0 auto;
-    padding: 2.5rem 1.5rem;
-    color: #1f2937;
-    background: #f9fafb;
+  body { margin: 0; background: var(--canvas); color: var(--text); font: 14px/20px var(--body); -webkit-font-smoothing: antialiased; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  :focus-visible { outline: 2px solid var(--text); outline-offset: 2px; border-radius: 4px; }
+  svg.icon { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round;
+             stroke-linejoin: round; flex: none; }
+  main { max-width: 1064px; margin: 0 auto; padding: 40px 32px 80px; }
+
+  /* ------------------------------------------------ header */
+  header { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; }
+  h1 { font: 600 30px/36px var(--display); letter-spacing: -0.035em; margin: 0; }  /* drawn like Friday's "friday" */
+  .summary { color: var(--text-2); margin: 2px 0 0; min-height: 20px; }
+  .header-actions { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+
+  /* ------------------------------------------------ buttons */
+  button, .button { font: inherit; color: var(--text); background: var(--surface-2); border: 1px solid var(--line);
+         border-bottom-color: var(--line-strong); border-radius: 4px; padding: 5px 14px; min-height: 32px; cursor: pointer;
+         display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; }
+  button:hover:not(:disabled), .button:hover { background: #f6f6f6; text-decoration: none; }
+  button:active:not(:disabled), .button:active { background: #f0f0f0; color: var(--text-2); }
+  button:disabled { color: var(--text-3); cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover:not(:disabled) { background: var(--accent-hover); }
+  button.primary:disabled { background: #c5c5c5; border-color: #c5c5c5; color: #fff; }
+  button.danger { background: var(--bad); border-color: var(--bad); color: #fff; }
+  button.danger:hover:not(:disabled) { background: var(--bad-hover); }
+  button.quiet { background: transparent; border-color: transparent; color: var(--text-2); }
+  button.quiet:hover:not(:disabled) { background: #ebebeb; }
+  button.icon-only { width: 32px; padding: 0; }
+
+  /* ------------------------------------------------ forms (adding or editing a server) */
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 18px 20px 20px; margin-top: 24px; }
+  .panel h2 { font: 600 14px/20px var(--body); margin: 0 0 12px; }
+  .fields { display: grid; grid-template-columns: minmax(140px, 1fr) minmax(220px, 2.2fr) 110px; gap: 12px; }
+  label { display: grid; gap: 4px; font-size: 12px; line-height: 16px; color: var(--text-2); }
+  input { font: 14px/20px var(--body); color: var(--text); min-height: 32px; padding: 5px 10px; background: var(--surface);
+          border: 1px solid var(--line); border-bottom-color: var(--text-3); border-radius: 4px; min-width: 0; }
+  input:focus { outline: none; border-bottom: 2px solid var(--accent); padding-bottom: 4px; }
+  .form-actions { display: flex; gap: 8px; margin-top: 16px; }
+
+  /* ------------------------------------------------ the servers */
+  .list { display: grid; gap: 4px; }
+  .server { position: relative; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 16px; min-height: 68px;
+            padding: 12px 12px 12px 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+  .who { display: flex; align-items: center; gap: 14px; min-width: 0; }
+  .light { width: 8px; height: 8px; border-radius: 50%; background: var(--text-3); flex: none; }
+  .light.running { background: var(--ok); box-shadow: 0 0 0 3px rgba(3, 120, 124, .16); }
+  .light.starting { background: var(--text-3); box-shadow: 0 0 0 3px rgba(138, 138, 138, .18); animation: pulse 1.4s ease-in-out infinite; }
+  .light.taken { background: #d18a00; box-shadow: 0 0 0 3px rgba(209, 138, 0, .16); }
+  @keyframes pulse { 50% { box-shadow: 0 0 0 6px rgba(138, 138, 138, .1); } }
+  .name { font-weight: 600; overflow-wrap: anywhere; }
+  .tag { margin-left: 8px; font-size: 12px; font-weight: 400; color: var(--text-3); white-space: nowrap; }
+  .where { color: var(--text-2); font-size: 12px; line-height: 16px; margin-top: 2px; overflow-wrap: anywhere; }
+  .where.warn { color: var(--warn); }
+  .actions { display: flex; gap: 8px; align-items: center; justify-content: flex-end; }
+  .actions .main { min-width: 72px; }
+  .more { position: relative; }
+  .menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 3; min-width: 220px; padding: 4px; background: var(--surface);
+          border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, .14); display: grid; }
+  .menu button { border: 0; background: transparent; justify-content: flex-start; gap: 10px; }
+  .menu button:hover:not(:disabled) { background: var(--canvas); }
+  .menu .remove { color: var(--bad); }
+  .menu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 0; }
+  .check { width: 16px; display: inline-flex; color: var(--accent); }
+  .server.confirm { background: var(--bad-soft); border-color: #f4c7cc; }
+  .server.editing { display: block; padding: 16px 20px 18px; }
+  .empty { padding: 28px 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; color: var(--text-2); }
+
+  #toast { position: fixed; bottom: 24px; left: 50%; transform: translate(-50%, 8px); padding: 10px 18px; border-radius: 6px;
+           background: #2b2b2b; color: #fff; opacity: 0; transition: opacity .18s, transform .18s; pointer-events: none;
+           max-width: min(560px, 90vw); z-index: 10; }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  @media (max-width: 640px) {
+    main { padding: 24px 16px 64px; }
+    .header-actions { margin-left: 0; }
+    .server { grid-template-columns: 1fr; gap: 10px; }
+    .actions { justify-content: flex-start; padding-left: 22px; }
+    .fields { grid-template-columns: 1fr; }
   }
-  h1 {
-    font-size: 1.3rem;
-    font-weight: 600;
-    margin: 0;
-    color: #111827;
-  }
-  .header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 1.25rem;
-    flex-wrap: wrap;
-    gap: 0.6rem;
-  }
-  .bulk-actions { display: flex; gap: 0.5rem; margin-top: 1.75rem;  }
-  #servers { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 1.75rem; }
-  .server {
-    display: flex;
-    align-items: center;
-    gap: 0.9rem;
-    background: white;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    padding: 0.85rem 1.1rem;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
-  }
-  .empty {
-    color: #9ca3af;
-    font-size: 0.9rem;
-    padding: 1rem 0;
-  }
-  .dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: #dc2626;
-    flex-shrink: 0;
-    box-shadow: 0 0 0 3px rgba(220,38,38,0.12);
-    transition: background 0.2s, box-shadow 0.2s;
-  }
-  .dot.running {
-    background: #16a34a;
-    box-shadow: 0 0 0 3px rgba(22,163,74,0.14);
-  }
-  .name { font-weight: 600; min-width: 180px; color: #111827; }
-  .port { color: #9ca3af; font-size: 0.85rem; min-width: 60px; }
-  .include-toggle {
-    cursor: pointer;
-    width: 15px;
-    height: 15px;
-    flex-shrink: 0;
-  }
-  .spacer { flex: 1; }
-  .actions { display: flex; gap: 0.4rem; }
-  button {
-    border: none;
-    border-radius: 6px;
-    padding: 0.45rem 0.9rem;
-    cursor: pointer;
-    font-size: 0.82rem;
-    font-weight: 500;
-    color: white;
-    transition: opacity 0.15s, transform 0.05s;
-  }
-  button:active:not(:disabled) { transform: scale(0.97); }
-  button:hover:not(:disabled) { opacity: 0.88; }
-  button.start { background: #2563eb; }
-  button.stop { background: #6b7280; }
-  button.remove { background: transparent; color: #dc2626; border: 1px solid #fecaca; }
-  button.remove:hover:not(:disabled) { background: #fef2f2; opacity: 1; }
-  button.edit { background: transparent; color: #2563eb; border: 1px solid #bfdbfe; }
-  button.edit:hover:not(:disabled) { background: #eff6ff; opacity: 1; }
-  button:disabled { opacity: 0.45; cursor: default; }
-  .server.editing { flex-wrap: wrap; }
-  .edit-form { display: flex; gap: 0.5rem; flex-wrap: wrap; flex: 1; align-items: stretch; }
-  .edit-form input {
-    padding: 0.45rem 0.6rem;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    font-size: 0.85rem;
-  }
-  .edit-form input[name="name"] { flex: 1; min-width: 120px; }
-  .edit-form input[name="start_script"] { flex: 2; min-width: 200px; }
-  .edit-form input[name="port"] { width: 80px; }
-  form {
-    background: white;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    padding: 1rem 1.1rem;
-    display: flex;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-    align-items: stretch;
-  }
-  form input {
-    padding: 0.5rem 0.7rem;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    font-size: 0.88rem;
-  }
-  form input:focus {
-    outline: none;
-    border-color: #2563eb;
-    box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
-  }
-  form input[name="name"] { flex: 1; min-width: 140px; }
-  form input[name="start_script"] { flex: 2; min-width: 220px; }
-  form input[name="port"] { width: 90px; }
-  form button { background: #2563eb; padding: 0.5rem 1.1rem; }
-  #error {
-    color: #b91c1c;
-    background: #fef2f2;
-    border: 1px solid #fecaca;
-    border-radius: 6px;
-    padding: 0.5rem 0.8rem;
-    margin-top: 0.6rem;
-    font-size: 0.85rem;
-    display: none;
-  }
-  #error.visible { display: block; }
+  @media (prefers-reduced-motion: reduce) { .light.starting { animation: none; } * { transition: none !important; } }
 </style>
 </head>
 <body>
-<div class="header">
-  <h1>Server Manager</h1>
+<svg width="0" height="0" style="position: absolute" aria-hidden="true">
+  <symbol id="i-dots" viewBox="0 0 16 16"><circle cx="3.5" cy="8" r=".6"/><circle cx="8" cy="8" r=".6"/><circle cx="12.5" cy="8" r=".6"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 16 16"><path d="M10.5 2.5l3 3L6 13H3v-3z"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 16 16"><path d="M2.5 4h11M6 4V2.5h4V4M4 4l.7 9.5h6.6L12 4"/></symbol>
+  <symbol id="i-open" viewBox="0 0 16 16"><path d="M9 2.5h4.5V7M13.5 2.5L7 9M11.5 9.5v4h-9v-9h4"/></symbol>
+  <symbol id="i-check" viewBox="0 0 16 16"><path d="M3 8.5l3 3 7-7"/></symbol>
+</svg>
 
-</div>
+<main>
+  <header>
+    <div><h1>Server Manager</h1><p class="summary" id="summary"></p></div>
+    <div class="header-actions">
+      <button id="start-all">Start all</button>
+      <button id="stop-all">Stop all</button>
+    </div>
+  </header>
 
-<form id="add-form">
+  <div class="list" id="servers"></div>
 
-  <input name="name" placeholder="Name" required>
-  <input name="start_script" placeholder="Full path to start.bat" required>
-  <input name="port" type="number" placeholder="Port" required>
-  <button type="submit">Add Server</button>
-</form>
-<div id="error"></div>
-
-<div class="bulk-actions">
-  <button id="start-all" class="start">Start All</button>
-  <button id="stop-all" class="stop">Stop All</button>
-</div>
-
-<div id="servers"></div>
+  <form id="add-form" class="panel" autocomplete="off">
+    <h2>Add a server</h2>
+    <div class="fields">
+      <label>Name<input name="name" required placeholder="my-app"></label>
+      <label>Its start.bat<input name="start_script" required placeholder="D:\code_files\my-app\start.bat"></label>
+      <label>Port<input name="port" type="number" min="1" max="65535" required placeholder="3000"></label>
+    </div>
+    <div class="form-actions"><button type="submit" class="primary">Add</button></div>
+  </form>
+</main>
+<div id="toast" role="status" aria-live="polite"></div>
 
 <script>
-const serversEl = document.getElementById('servers');
-const errorEl = document.getElementById('error');
+const $ = (id) => document.getElementById(id);
+const listEl = $('servers');
 let servers = [];
-let pending = {};
-let editingId = null;
+let pending = {};      // id -> 'start' | 'stop' | 'remove' while that request runs
+let editingId = null;  // the server showing its edit form
+let menuId = null;     // the server whose ⋯ menu is open
+let confirmId = null;  // the server asking "Remove …?"
+let focusNext = null;  // what to focus once the list is drawn again
+let answering = null;  // false once a refresh failed
+let lastDrawn = '';
+let toastTimer = null;
 
-function showError(msg) {
-  errorEl.textContent = msg;
-  errorEl.classList.add('visible');
-  setTimeout(() => errorEl.classList.remove('visible'), 4000);
+const esc = (text) => String(text).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const icon = (name) => `<svg class="icon" aria-hidden="true"><use href="#i-${name}"/></svg>`;
+const byId = (id) => servers.find((s) => s.id === id);
+
+function toast(text) {
+  const t = $('toast');
+  t.textContent = text;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 4000);
+}
+
+// The API's reason (e.g. "port 3001 is in use by node.exe"), as a sentence. (The API's own words stay as they are:
+// Friday reads them too.)
+const PLAIN = {
+  'start_script path does not exist': "There's no start.bat at that path",
+  'start_script path no longer exists': "Its start.bat isn't there any more",
+  'start_script must be a full path': 'Give the full path to its start.bat, like D:\\code_files\\my-app\\start.bat',
+  'name is empty': 'Give it a name',
+};
+async function problem(res, fallback) {
+  let detail = null;
+  try { detail = (await res.json()).detail; } catch (e) { }
+  if (Array.isArray(detail)) detail = detail.map((d) => d.msg).join('; ');
+  const text = PLAIN[detail] || String(detail || fallback);
+  toast(text.charAt(0).toUpperCase() + text.slice(1) + (/[.!?]$/.test(text) ? '' : '.'));
+}
+
+// Where Open goes: its own port, or the one it moved to
+function openPort(s) {
+  return s.state === 'other_port' ? Math.min(...s.ports) : s.port;
+}
+
+// The line under its name: where it runs, or why it doesn't. Returns [html, is it a warning]
+function where(s) {
+  const link = (port) => `<a href="http://localhost:${Number(port)}/" target="_blank" rel="noopener">localhost:${Number(port)}</a>`;
+  const port = Number(s.port);
+  if (s.state === 'running') return [`Running on ${link(port)}`, false];
+  if (s.state === 'other_port') return [`Running on ${link(openPort(s))} instead of ${port}`, true];
+  if (s.state === 'starting') return [`Starting on port ${port}…`, false];
+  if (s.state === 'port_taken') {
+    const h = s.holder;
+    const who = h ? (h.server || h.program + (h.folder ? ` from ${h.folder}` : '')) : 'another program';
+    return [`Port ${port} is in use by ${esc(who)}`, true];
+  }
+  return [`Stopped, uses port ${port}`, false];
+}
+
+function light(s, busy) {
+  if (busy === 'start' || s.state === 'starting') return 'starting';
+  if (s.running) return 'running';
+  return s.state === 'port_taken' ? 'taken' : '';
+}
+
+// One button for what makes sense now: Start, Stop, or what it's busy doing
+function mainButton(s, busy) {
+  if (busy) return `<button class="main" disabled>${{ start: 'Starting…', stop: 'Stopping…', remove: 'Removing…' }[busy]}</button>`;
+  if (s.running) return `<button class="main" data-act="stop">Stop</button>`;
+  if (s.state === 'starting') return `<button class="main" disabled>Starting…</button>`;
+  return `<button class="main primary" data-act="start">Start</button>`;
+}
+
+function row(s) {
+  const busy = pending[s.id];
+  const el = document.createElement('div');
+  el.className = 'server';
+  el.dataset.id = s.id;
+
+  if (editingId === s.id) {
+    el.classList.add('editing');
+    el.innerHTML = `
+      <form class="edit-form" autocomplete="off">
+        <div class="fields">
+          <label>Name<input name="name" value="${esc(s.name)}" required></label>
+          <label>Its start.bat<input name="start_script" value="${esc(s.start_script)}" required></label>
+          <label>Port<input name="port" type="number" min="1" max="65535" value="${Number(s.port)}" required></label>
+        </div>
+        <div class="form-actions"><button type="submit" class="primary">Save</button><button type="button" data-act="cancel-edit">Cancel</button></div>
+      </form>`;
+    return el;
+  }
+
+  if (confirmId === s.id) {
+    el.classList.add('confirm');
+    el.innerHTML = `
+      <div class="who"><span class="light ${light(s, busy)}"></span>
+        <div>Remove <b>${esc(s.name)}</b> from Server Manager? ${s.running ? 'It keeps running, and its' : 'Its'} files stay where they are.</div></div>
+      <div class="actions"><button class="danger" data-act="remove">Remove</button><button data-act="cancel-remove">Cancel</button></div>`;
+    return el;
+  }
+
+  const [text, warn] = busy === 'start' ? [`Starting on port ${Number(s.port)}…`, false] : where(s);
+  const open = menuId === s.id;
+  el.innerHTML = `
+    <div class="who"><span class="light ${light(s, busy)}"></span>
+      <div><div class="name">${esc(s.name)}${s.enabled ? '' : '<span class="tag">Not in Start all</span>'}</div>
+        <div class="where${warn ? ' warn' : ''}">${text}</div></div></div>
+    <div class="actions">
+      ${s.running && !busy ? `<a class="button" href="http://localhost:${Number(openPort(s))}/" target="_blank" rel="noopener">${icon('open')}Open</a>` : ''}
+      ${mainButton(s, busy)}
+      <div class="more">
+        <button class="icon-only quiet" data-act="menu" aria-label="More for ${esc(s.name)}" aria-haspopup="menu"
+                aria-expanded="${open}" ${busy ? 'disabled' : ''}>${icon('dots')}</button>
+        ${open ? `<div class="menu" role="menu">
+          <button role="menuitem" data-act="edit">${icon('edit')}Edit</button>
+          <button role="menuitemcheckbox" aria-checked="${!!s.enabled}" data-act="start-all-toggle"><span class="check">${s.enabled ? icon('check') : ''}</span>Include in Start all</button>
+          <hr>
+          <button role="menuitem" class="remove" data-act="ask-remove">${icon('trash')}Remove</button>
+        </div>` : ''}
+      </div>
+    </div>`;
+  return el;
 }
 
 function render() {
-  if (servers.length === 0) {
-    serversEl.innerHTML = '<div class="empty">No servers registered yet — add one below.</div>';
-    return;
-  }
-  serversEl.innerHTML = '';
-  for (const s of servers) {
-    const busy = pending[s.id];
-    const row = document.createElement('div');
-
-    if (editingId === s.id) {
-      row.className = 'server editing';
-      row.innerHTML = `
-        <div class="edit-form">
-          <input name="name" value="${s.name}" required>
-          <input name="start_script" value="${s.start_script}" required>
-          <input name="port" type="number" value="${s.port}" required>
-        </div>
-        <div class="actions">
-          <button class="start">Save</button>
-          <button class="stop">Cancel</button>
-        </div>
-      `;
-      row.querySelector('.start').addEventListener('click', () => saveEdit(s.id, row));
-      row.querySelector('.stop').addEventListener('click', () => { editingId = null; render(); });
-      serversEl.appendChild(row);
-      continue;
+  if (editingId !== null && listEl.querySelector('.editing')) return;  // don't wipe what's being typed
+  const drawn = JSON.stringify([servers, pending, editingId, menuId, confirmId, answering]);
+  if (drawn !== lastDrawn) {  // unchanged: leave the page (and where you are on it) as it is
+    lastDrawn = drawn;
+    const up = servers.filter((s) => s.running).length;
+    $('summary').textContent = answering === false ? "Server Manager isn't answering"
+      : answering === null ? '' : servers.length ? `${up} of ${servers.length} running` : 'No servers yet';
+    $('start-all').disabled = !servers.some(canStart);
+    $('stop-all').disabled = !servers.some((s) => s.running && !pending[s.id]);
+    if (answering && !servers.length) {
+      listEl.innerHTML = '<div class="empty">No servers yet. Add one below, or ask Friday to.</div>';
+    } else {
+      listEl.replaceChildren(...servers.map(row));
     }
-
-    row.className = 'server';
-    row.innerHTML = `
-      <input type="checkbox" class="include-toggle" title="Include in Start All" ${s.enabled ? 'checked' : ''}>
-      <span class="dot ${s.running ? 'running' : ''}"></span>
-      <span class="name">${s.name}</span>
-      <span class="port">:${s.port}</span>
-      <span class="spacer"></span>
-      <div class="actions">
-        <button class="start" ${s.running || busy ? 'disabled' : ''}>${busy === 'start' ? 'Starting…' : 'Start'}</button>
-        <button class="stop" ${!s.running || busy ? 'disabled' : ''}>${busy === 'stop' ? 'Stopping…' : 'Stop'}</button>
-        <button class="edit" ${busy ? 'disabled' : ''}>Edit</button>
-        <button class="remove" ${busy ? 'disabled' : ''}>${busy === 'remove' ? 'Removing…' : 'Remove'}</button>
-      </div>
-    `;
-    row.querySelector('.start').addEventListener('click', () => startServer(s.id));
-    row.querySelector('.stop').addEventListener('click', () => stopServer(s.id));
-    row.querySelector('.edit').addEventListener('click', () => { editingId = s.id; render(); });
-    row.querySelector('.remove').addEventListener('click', () => removeServer(s.id));
-    row.querySelector('.include-toggle').addEventListener('change', (e) => setEnabled(s.id, e.target.checked));
-    serversEl.appendChild(row);
   }
+  if (focusNext) { listEl.querySelector(focusNext)?.focus(); focusNext = null; }
 }
 
-async function saveEdit(id, row) {
+const canStart = (s) => s.enabled && !s.running && s.state !== 'starting' && !pending[s.id];
+const rowSelector = (id) => `.server[data-id="${CSS.escape(id)}"]`;
+
+async function refresh() {
+  try {
+    const res = await fetch('/servers');
+    if (!res.ok) throw new Error(res.status);
+    servers = await res.json();
+    answering = true;
+  } catch (e) {
+    answering = false;
+  }
+  render();
+}
+
+async function saveEdit(id, form) {
   const body = {
-    name: row.querySelector('input[name="name"]').value,
-    start_script: row.querySelector('input[name="start_script"]').value,
-    port: parseInt(row.querySelector('input[name="port"]').value, 10),
+    name: form.elements.name.value,
+    start_script: form.elements.start_script.value,
+    port: parseInt(form.elements.port.value, 10),
   };
   const res = await fetch(`/servers/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  if (!res.ok) {
-    showError((await res.json()).detail || 'Failed to save changes');
-    return;
-  }
+  if (!res.ok) return problem(res, "Couldn't save the changes");
   editingId = null;
-  refresh();
-}
-
-async function refresh() {
-  const res = await fetch('/servers');
-  servers = await res.json();
-  render();
+  await refresh();
 }
 
 async function setEnabled(id, enabled) {
-  const s = servers.find((x) => x.id === id);
+  const s = byId(id);
   if (s) s.enabled = enabled;
+  render();
   const res = await fetch(`/servers/${id}/enabled`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ enabled }),
   });
   if (!res.ok) {
-    showError((await res.json()).detail || 'Failed to update');
+    await problem(res, "Couldn't change that");
     refresh();
   }
 }
@@ -266,7 +328,9 @@ async function withPending(id, action, fn) {
   render();
   try {
     const res = await fetch(...fn());
-    if (!res.ok) showError((await res.json()).detail || `Failed to ${action}`);
+    if (!res.ok) await problem(res, `Couldn't ${action} it`);
+  } catch (e) {
+    toast("Server Manager isn't answering.");
   } finally {
     delete pending[id];
     await refresh();
@@ -285,36 +349,68 @@ function removeServer(id) {
   withPending(id, 'remove', () => [`/servers/${id}`, { method: 'DELETE' }]);
 }
 
-document.getElementById('start-all').addEventListener('click', () => {
-  for (const s of servers) {
-    if (s.enabled && !s.running && !pending[s.id]) startServer(s.id);
-  }
+// ------------------------------------------------ the list's buttons
+const ACTIONS = {
+  start: (id) => startServer(id),
+  stop: (id) => stopServer(id),
+  menu: (id) => { menuId = menuId === id ? null : id; focusNext = menuId ? `${rowSelector(id)} .menu button` : null; render(); },
+  edit: (id) => { menuId = null; editingId = id; focusNext = `${rowSelector(id)} input`; render(); },
+  'start-all-toggle': (id) => { menuId = null; focusNext = `${rowSelector(id)} [data-act="menu"]`; setEnabled(id, !byId(id).enabled); },
+  'ask-remove': (id) => { menuId = null; confirmId = id; focusNext = `${rowSelector(id)} [data-act="cancel-remove"]`; render(); },
+  remove: (id) => { confirmId = null; removeServer(id); },
+  'cancel-remove': (id) => { confirmId = null; focusNext = `${rowSelector(id)} [data-act="menu"]`; render(); },
+  'cancel-edit': (id) => { editingId = null; focusNext = `${rowSelector(id)} [data-act="menu"]`; render(); },
+};
+
+listEl.addEventListener('click', (e) => {
+  const button = e.target.closest('[data-act]');
+  if (button) ACTIONS[button.dataset.act]?.(button.closest('.server').dataset.id);
 });
 
-document.getElementById('stop-all').addEventListener('click', () => {
-  for (const s of servers) {
-    if (s.running && !pending[s.id]) stopServer(s.id);
-  }
+listEl.addEventListener('submit', (e) => {
+  e.preventDefault();
+  saveEdit(e.target.closest('.server').dataset.id, e.target);
 });
 
-document.getElementById('add-form').addEventListener('submit', async (e) => {
+document.addEventListener('click', (e) => {  // a click elsewhere closes the menu
+  if (menuId !== null && !e.target.closest('.more')) { menuId = null; render(); }
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if (menuId !== null) {
+    focusNext = `${rowSelector(menuId)} [data-act="menu"]`;
+    menuId = null;
+    render();
+  } else if (confirmId !== null) ACTIONS['cancel-remove'](confirmId);
+  else if (editingId !== null) ACTIONS['cancel-edit'](editingId);
+});
+
+// ------------------------------------------------ header
+$('start-all').addEventListener('click', () => {
+  for (const s of servers) if (canStart(s)) startServer(s.id);
+});
+
+$('stop-all').addEventListener('click', () => {
+  for (const s of servers) if (s.running && !pending[s.id]) stopServer(s.id);
+});
+
+$('add-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const form = e.target;
   const body = {
-    name: form.name.value,
-    start_script: form.start_script.value,
-    port: parseInt(form.port.value, 10),
+    name: form.elements.name.value,
+    start_script: form.elements.start_script.value,
+    port: parseInt(form.elements.port.value, 10),
   };
   const res = await fetch('/servers', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  if (!res.ok) {
-    showError((await res.json()).detail || 'Failed to add server');
-    return;
-  }
+  if (!res.ok) return problem(res, "Couldn't add it");
   form.reset();
+  toast(`Added ${body.name}.`);
   refresh();
 });
 
